@@ -1,0 +1,139 @@
+#summary Usage notes.
+#labels Featured
+
+== Calling Objective-C Methods ==
+
+To call an Objective-C method you need either an NSObject or Class instance. Once you 
+have one of these you can use the NSObject.Call method which returns a System.Object. There's also a System.Object extension method to allow Calls to be chained. 
+
+For simple types the returned type will match the native type so unsigned char will be returned as a System.Byte. Structs will be returned as .NET value types (assuming that they are registered with mobjc). Classes will be returned as instances of exported/registered classes or NSObject if a matching exported class cannot be found. Here's an example:
+
+{{{
+Class dictClass = new Class("NSMutableDictionary");
+Class strClass = new Class("NSString");
+
+NSObject dict = (NSObject) dictClass.Call("alloc").Call("init");
+NSObject key = (NSObject) strClass.Call("stringWithUTF8String:", "NSOwner");
+dict.Call("setObject:forKey:", this, key);
+}}}
+
+
+You can create a Native instance and reuse that as needed which is a bit more efficient:
+
+{{{
+Selector sel = new Selector("setObject:forKey:");
+
+object result;
+using (Native native = new Native(dict, sel))
+{
+    native.SetArgs(this, key);			
+    result = native.Invoke();
+}
+}}}
+
+
+== Defining New Objective-C Classes ==
+
+Defining new classes is easy:
+
+{{{
+[ExportClass("MyView", "NSView", IVars = "myVar1 myVar2")]
+internal sealed class MyView : NSObject
+{
+    // This will be used if the view was created from native code and will
+    // be called the first time a managed method is called from native
+    // code.
+    private MyView(IntPtr instance) : base(instance)
+    {
+    }
+        
+    // Note that we're using a derived NSObject class for the argument.
+    // This will work if the derived type is exported or registered (see
+    // the next section).
+    public void addABox(NSView sender)
+    {
+        // ...
+    }
+
+    // Methods which may be called from native code need to be registered.
+    // This registration is automatic for public nullary or unary methods
+    // which start with a lower case letter.
+    [Register("tag")]        
+    public int tag()
+    {
+        return 33;
+    }
+}
+}}}
+
+The IVars part of the !ExportClassAttribute is optional. 
+
+== Structs ==
+
+In order to use a struct with native code you need to register it. Once you've done this it can be used with the Call methods like any other type:
+
+{{{
+[Register("_NSRange")]
+public struct NSRange
+{        
+    public int location;
+    public int length;
+
+    public NSRange(int loc, int len)
+    {
+        location = loc;
+        length = len;
+    }
+            
+    public override string ToString()
+    {
+        return string.Format("[{0}, {1}]", location, location + length);
+    }
+}
+}}}
+
+== Wrapping Existing Classes ==
+
+Appkit and Foundation classes can be wrapped with a managed class to make them easier to use. For example:
+
+{{{
+[Register]
+public partial class NSString : NSObject
+{
+    public NSString(IntPtr instance) : base(instance)
+    {
+    }
+
+    public static new NSString Create()
+    {
+        NSString result = (NSString) ms_class.Alloc().init();
+        result.autorelease();
+        return result;
+    }
+
+    public static new Class Class
+    {
+        get {return ms_class;}
+    }
+
+    public UInt32 length()
+    {
+        return (UInt32) Call("length");
+    }
+
+    public char characterAtIndex(UInt32 index)
+    {
+        return (char) Call("characterAtIndex:", index);
+    }
+}
+}}}
+
+== Memory Management ==
+
+In general, memory management works exactly as it does with native code. The only wrinkle is that there can be a managed instance associated with native instances. If the native instance is an exported class the library will enforce a constraint that ensures that there is only one managed instance for the native instance and the managed instance becomes eligible for garbage collection as soon as the native instance's reference count drops to zero.
+
+If the class is not exported there may be multiple managed instances associated with a single native instance. These managed instances are garbage collected normally and should not contain any state not derived from the native instance.
+
+== Thread Safety ==
+
+In general nothing is thread safe unless specifically indicated. However the Selector class is thread safe, NSObject.Call can be used from multiple threads, and managed code can be called from multiple threads. 
