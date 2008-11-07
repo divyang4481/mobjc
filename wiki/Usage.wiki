@@ -31,6 +31,7 @@ using (Native native = new Native(dict, sel))
 }
 }}}
 
+Note that most of the time you don't need to use either one of these: you can instead use the wrappers in mcocoa.
 
 == Defining New Objective-C Classes ==
 
