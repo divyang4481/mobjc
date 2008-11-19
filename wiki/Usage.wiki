@@ -38,7 +38,7 @@ Note that most of the time you don't need to use either one of these: you can in
 Defining new classes is easy:
 
 {{{
-[ExportClass("MyView", "NSView", IVars = "myVar1 myVar2")]
+[ExportClass("MyView", "NSView", Outlets = "myVar1 myVar2")]
 internal sealed class MyView : NSObject
 {
     // This will be used if the view was created from native code and will
@@ -67,7 +67,7 @@ internal sealed class MyView : NSObject
 }
 }}}
 
-The IVars part of the !ExportClassAttribute is optional. 
+The Outlets part of the !ExportClassAttribute is optional. 
 
 == Structs ==
 
