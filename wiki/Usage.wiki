@@ -57,8 +57,9 @@ internal sealed class MyView : NSObject
     }
 
     // Methods which may be called from native code need to be registered.
-    // This registration is automatic for public nullary or unary methods
-    // which start with a lower case letter.
+    // This registration is automatic for methods which start with a lower
+    // case letter so we didn't need to use it here. However it can be useful
+    // if you want to use a different method name from the native code.
     [Register("tag")]        
     public int tag()
     {
