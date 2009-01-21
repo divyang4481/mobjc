@@ -31,7 +31,9 @@ using (Native native = new Native(dict, sel))
 }
 }}}
 
-Note that most of the time you don't need to use either one of these: you can instead use the wrappers in mcocoa.
+Lastly you can use the p/invoke methods in the DirectCalls class. These are much more efficient than either the Call method or the Native class, but more difficult to use and restricted to methods with arities up to two.
+
+Note that most of the time you don't need to use any of these: instead you can use the wrappers in mcocoa.
 
 == Defining New Objective-C Classes ==
 
