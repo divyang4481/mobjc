@@ -78,7 +78,3 @@ If the class is not exported there may be multiple managed instances associated 
 Thread safety is specified using [https://home.comcast.net/~jesse98/public/mobjc_docs/types/MObjc-Helpers-ThreadModelAttribute.html ThreadModelAttribute]. Types and methods which are not decorated with this attribute may only be used from within the main thread.
 
 For specifics look at the API Reference, but in general once the types have been registered mobjc can be used from any thread. 
-
-== API Reference ==
-
-Is [https://home.comcast.net/~jesse98/public/mobjc_docs/namespaces.html here].
