@@ -1,68 +1,63 @@
 #summary Usage notes.
 #labels Featured
 
-== Calling Objective-C Methods ==
+== Basic Usage ==
 
-To call an Objective-C method you need either an NSObject or Class instance. Once you 
-have one of these you can use the NSObject.Call method which returns a System.Object. There's also a System.Object extension method to allow Calls to be chained. 
+In general [http://code.google.com/p/mcocoa/ mcocoa] is what you should typically be using to interoperate with Objective-C code. However mobjc does need to be used directly on occasion. This is usually because you need to make a dynamic method call or you need to define a new Objective-C class using managed code.
 
-For simple types the returned type will match the native type so unsigned char will be returned as a System.Byte. Structs will be returned as .NET value types (assuming that they are registered with mobjc). Classes will be returned as instances of exported/registered classes or NSObject if a matching exported class cannot be found. Here's an example:
-
-{{{
-Class dictClass = new Class("NSMutableDictionary");
-Class strClass = new Class("NSString");
-
-NSObject dict = (NSObject) dictClass.Call("alloc").Call("init");
-NSObject key = (NSObject) strClass.Call("stringWithUTF8String:", "NSOwner");
-dict.Call("setObject:forKey:", this, key);
-}}}
-
-
-You can create a Native instance and reuse that as needed which is a bit more efficient:
+Dynamic method calls are needed fairly often. For example, validateUserInterfaceItem methods may be called with an NSMenuItem or NSToolbarItem sender so a dynamic call is needed to get things like the action selector. Here's an example which uses mcocoa:
 
 {{{
-Selector sel = new Selector("setObject:forKey:");
-
-object result;
-using (Native native = new Native(dict, sel))
+// If we know that sender will always be an NSMenuItem then we can make 
+// the sender a NSMenuItem which would allow us to avoid the dynamic call
+// and simply call the action method of NSMenuItem.
+public bool validateUserInterfaceItem(NSObject sender)
 {
-    native.SetArgs(this, key);			
-    result = native.Invoke();
+    // It's also possible to cast the result instead of using the To method,
+    // but To is a bit smarter than a simple cast and provides better error
+    // messages on failures.
+    Selector sel = sender.Call("action").To<Selector>();
+    
+    bool valid = false;
+    if (sel.Name == "processSelection:")
+    {
+        NSRange range = m_textView.selectedRange();
+        valid = range.length > 0;
+    }
+    else if (respondsToSelector(sel))
+    {
+        valid = true;
+    }
+    
+    return valid;
 }
 }}}
 
-Lastly you can use the p/invoke methods in the DirectCalls class. These are much more efficient than either the Call method or the Native class, but more difficult to use and restricted to methods with arities up to two.
-
-Note that most of the time you don't need to use any of these: instead you can use the wrappers in mcocoa.
-
 == Defining New Objective-C Classes ==
 
-Defining new classes is easy:
+In order to create a new Objective-C class you need to decorate it with [https://home.comcast.net/~jesse98/public/mobjc_docs/types/MObjc-ExportClassAttribute.html ExportClassAttribute]. Here's an example:
+
 
 {{{
-[ExportClass("MyView", "NSView", Outlets = "myVar1 myVar2")]
-internal sealed class MyView : NSObject
+// The outlets should have the same names as the outlets in Interface Builder.
+[ExportClass("MyView", "NSView", Outlets = "label ok_button")]
+internal sealed class MyView : NSView
 {
-    // This will be used if the view was created from native code and will
-    // be called the first time a managed method is called from native
-    // code.
+    // This will be called automagically when the nib is loaded.
     private MyView(IntPtr instance) : base(instance)
     {
     }
         
-    // Note that we're using a derived NSObject class for the argument.
-    // This will work if the derived type is exported or registered (see
-    // the next section).
-    public void addABox(NSView sender)
+    // If the sender is not an NSControl an exception will be thrown.
+    public void addABox(NSControl sender)
     {
         // ...
     }
 
     // Methods which may be called from native code need to be registered.
-    // This registration is automatic for methods which start with a lower
-    // case letter so we didn't need to use it here. However it can be useful
-    // if you want to use a different method name from the native code.
-    [Register("tag")]        
+    // This registration is automatic for methods of exported types which
+    // start with a lower case letter but you can use RegisterAttribute if
+    // you want the managed and unmanaged names to differ.
     public int tag()
     {
         return 33;
@@ -72,66 +67,6 @@ internal sealed class MyView : NSObject
 
 The Outlets part of the !ExportClassAttribute is optional. 
 
-== Structs ==
-
-In order to use a struct with native code you need to register it. Once you've done this it can be used with the Call methods like any other type:
-
-{{{
-[Register("_NSRange")]
-public struct NSRange
-{        
-    public int location;
-    public int length;
-
-    public NSRange(int loc, int len)
-    {
-        location = loc;
-        length = len;
-    }
-            
-    public override string ToString()
-    {
-        return string.Format("[{0}, {1}]", location, location + length);
-    }
-}
-}}}
-
-== Wrapping Existing Classes ==
-
-Appkit and Foundation classes can be wrapped with a managed class to make them easier to use. For example:
-
-{{{
-[Register]
-public partial class NSString : NSObject
-{
-    public NSString(IntPtr instance) : base(instance)
-    {
-    }
-
-    public static new NSString Create()
-    {
-        NSString result = (NSString) ms_class.Alloc().init();
-        result.autorelease();
-        return result;
-    }
-
-    public static new Class Class
-    {
-        get {return ms_class;}
-    }
-
-    public UInt32 length()
-    {
-        return (UInt32) Call("length");
-    }
-
-    public char characterAtIndex(UInt32 index)
-    {
-        return (char) Call("characterAtIndex:", index);
-    }
-}
-}}}
-
 == Memory Management ==
 
 In general, memory management works exactly as it does with native code. The only wrinkle is that there can be a managed instance associated with native instances. If the native instance is an exported class the library will enforce a constraint that ensures that there is only one managed instance for the native instance and the managed instance becomes eligible for garbage collection as soon as the native instance's reference count drops to zero.
@@ -140,4 +75,8 @@ If the class is not exported there may be multiple managed instances associated 
 
 == Thread Safety ==
 
-In general nothing is thread safe unless specifically indicated. However the Selector class is thread safe, NSObject.Call can be used from multiple threads, and managed code can be called from multiple threads. 
+Thread safety is specified using [https://home.comcast.net/~jesse98/public/mobjc_docs/types/MObjc-Helpers-ThreadModelAttribute.html ThreadModelAttribute]. Types and methods which are not decorated with this attribute may only be used from within the main thread.
+
+== API Reference ==
+
+Is [https://home.comcast.net/~jesse98/public/mobjc_docs/namespaces.html here].
