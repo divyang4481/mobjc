@@ -73,6 +73,8 @@ In general, memory management works exactly as it does with native code. The onl
 
 If the class is not exported there may be multiple managed instances associated with a single native instance. These managed instances are garbage collected normally and should not contain any state not derived from the native instance.
 
+Note that references in custom classes should be released in OnDealloc not dealloc (if you try to override dealloc an exception will be thrown).
+
 == Thread Safety ==
 
 Thread safety is specified using [https://home.comcast.net/~jesse98/public/mobjc_docs/types/MObjc-Helpers-ThreadModelAttribute.html ThreadModelAttribute]. Types and methods which are not decorated with this attribute may only be used from within the main thread.
