@@ -73,7 +73,7 @@ In general, memory management works exactly as it does with native code. The onl
 
 If the class is not exported there may be multiple managed instances associated with a single native instance. These managed instances are garbage collected normally and should not contain any state not derived from the native instance.
 
-Note that references in custom classes should be released in OnDealloc not dealloc (if you try to override dealloc an exception will be thrown).
+Note that references in custom classes should be released in !OnDealloc not dealloc (if you try to override dealloc an exception will be thrown).
 
 == Thread Safety ==
 
